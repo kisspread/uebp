@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mkdocs-blueprintue',
-    version='0.1.0',
+    version='0.1.2',
     description='MkDocs plugin for rendering Unreal Engine Blueprint nodes',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',

@@ -112,50 +112,13 @@ class BlueprintUEPlugin(BasePlugin):
         """Render a blueprint to HTML."""
         # Check if the text is a blueprintue.com URL
         if text.strip().startswith('https://blueprintue.com/render/'):
-            return f'''<div class="bue-render">
-    <iframe src="{text.strip()}" scrolling="no" allowfullscreen style="width: 100%; height: 643px; border: none;"></iframe>
-</div>'''
+            return Markup(f'<div class="bue-render"><iframe src="{text.strip()}" scrolling="no" allowfullscreen style="width: 100%; height: 643px; border: none;"></iframe></div>')
 
         # Create a unique ID for this blueprint
         blueprint_id = f"blueprint_{uuid.uuid4().hex}"
         container_id = f"container_{blueprint_id}"
         
-        # Create the HTML output with proper indentation
-        html_output = Markup(f'''<div class="bue-render">
-    <div class="playground" id="{container_id}"></div>
-    <textarea id="{blueprint_id}_data" style="position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important;">{html.escape(text)}</textarea>
-    <script>
-        (function() {{
-            function initBlueprintRenderer() {{
-                const textarea = document.getElementById('{blueprint_id}_data');
-                const container = document.getElementById('{container_id}');
-                if (!textarea || !container) return;
-                
-                // Check if render is loaded
-                if (!window.blueprintUE || !window.blueprintUE.render || !window.blueprintUE.render.Main) {{
-                    setTimeout(initBlueprintRenderer, 100);
-                    return;
-                }}
-                
-                try {{
-                    new window.blueprintUE.render.Main(
-                        textarea.value,
-                        container,
-                        {{height:"643px"}}
-                    ).start();
-                }} catch (e) {{
-                    console.error('Error initializing blueprint renderer:', e);
-                }}
-            }}
-            
-            // Start initialization when the script is loaded
-            if (document.readyState === 'complete') {{
-                initBlueprintRenderer();
-            }} else {{
-                window.addEventListener('load', initBlueprintRenderer);
-            }}
-        }})();
-    </script>
-</div>''')
+        # Create the HTML output without extra indentation
+        html_output = f'<div class="bue-render"><div class="playground" id="{container_id}"></div><textarea id="{blueprint_id}_data" style="display:none">{html.escape(text)}</textarea><script>(function(){{function initBlueprintRenderer(){{const textarea=document.getElementById(\'{blueprint_id}_data\');const container=document.getElementById(\'{container_id}\');if(!textarea||!container)return;if(!window.blueprintUE||!window.blueprintUE.render||!window.blueprintUE.render.Main){{setTimeout(initBlueprintRenderer,100);return;}}try{{new window.blueprintUE.render.Main(textarea.value,container,{{height:"643px"}}).start();}}catch(e){{console.error(\'Error initializing blueprint renderer:\',e);}}}};if(document.readyState===\'complete\'){{initBlueprintRenderer();}}else{{window.addEventListener(\'load\',initBlueprintRenderer);}}}})();</script></div>'
         
-        return html_output
+        return Markup(html_output)
