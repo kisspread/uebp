@@ -44,7 +44,7 @@ class BlueprintUEPlugin(BasePlugin):
         This method processes the markdown content to render blueprint nodes.
         It handles two types of syntax:
         1. ![uebp]{{{...}}} - For inline blueprint text or URL
-        2. ```uebp ... ``` - For blueprint code blocks
+        2. ```uebp height="500px" ... ``` - For blueprint code blocks with optional height
         
         The processing is done in this order:
         1. First split the content into code blocks and non-code blocks
@@ -56,7 +56,7 @@ class BlueprintUEPlugin(BasePlugin):
         # First split the content into code blocks and non-code blocks
         parts = []
         last_end = 0
-        code_block_pattern = r'```(\w+)?\n(.*?)```'
+        code_block_pattern = r'```(\w+)(?:\s+height="(\d+(?:px|em|vh)?)")?\n(.*?)```'
         
         # Find all code blocks
         for match in re.finditer(code_block_pattern, markdown, re.DOTALL):
@@ -70,11 +70,12 @@ class BlueprintUEPlugin(BasePlugin):
                 
             # Handle code blocks
             block_type = match.group(1)
-            block_content = match.group(2)
+            block_height = match.group(2)
+            block_content = match.group(3)
             
             if block_type == 'uebp':
-                # Render blueprint code blocks
-                parts.append(self._render_blueprint(block_content.strip()))
+                # Render blueprint code blocks with optional height
+                parts.append(self._render_blueprint(block_content.strip(), block_height))
             else:
                 # Keep other code blocks as is
                 parts.append(match.group(0))
@@ -96,11 +97,12 @@ class BlueprintUEPlugin(BasePlugin):
             
         return re.sub(r'!\[uebp\]\{{{(.*?)}}}', _replace, text, flags=re.DOTALL)
         
-    def _render_blueprint(self, text: str) -> str:
+    def _render_blueprint(self, text: str, height: str = None) -> str:
         """Render a blueprint to HTML.
         
         Args:
             text: The blueprint text or URL to render
+            height: Optional height for the container (e.g. "500px")
             
         Returns:
             HTML output for the blueprint
@@ -109,10 +111,16 @@ class BlueprintUEPlugin(BasePlugin):
         container_id = f'bue_container_{uuid.uuid4().hex[:8]}'
         blueprint_id = f'bue_data_{uuid.uuid4().hex[:8]}'
         
+        # Default height if none specified
+        if not height:
+            height = "643px"
+        elif not any(height.endswith(unit) for unit in ["px", "em", "vh"]):
+            height = f"{height}px"
+        
         # Check if the text is a URL
         if text.strip().startswith('http'):
             # For URLs, use iframe
-            return Markup(f'<div class="bue-render"><iframe src="{text.strip()}" scrolling="no" allowfullscreen style="width: 100%; height: 643px; border: none;"></iframe></div>')
+            return Markup(f'<div class="bue-render"><iframe src="{text.strip()}" scrolling="no" allowfullscreen style="width: 100%; height: {height}; border: none;"></iframe></div>')
         
         # For blueprint text, use the renderer
         html_output = f'''<div class="bue-render">
@@ -129,7 +137,7 @@ class BlueprintUEPlugin(BasePlugin):
                         return;
                     }}
                     try {{
-                        new window.blueprintUE.render.Main(textarea.value, container, {{height:"643px"}}).start();
+                        new window.blueprintUE.render.Main(textarea.value, container, {{height:"{height}"}}).start();
                     }} catch(e) {{
                         console.error('Error initializing blueprint renderer:', e);
                     }}
