@@ -20,18 +20,9 @@ pip install mkdocs-blueprintue
 
 ## Usage
 
-Add the plugin to your `mkdocs.yml`:
+The plugin supports three ways to include blueprints in your markdown:
 
-```yaml
-plugins:
-    - search
-    - blueprintue
-```
-
-### Local Blueprint Text
-
-Use the following syntax to render blueprint nodes from text:
-
+### 1. Inline Blueprint Text
 ```markdown
 ![uebp]{{{
 Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name="K2Node_CallFunction_0"
@@ -43,10 +34,21 @@ End Object
 }}}
 ```
 
-### BlueprintUE.com Links
+### 2. Code Block (Recommended)
+This format supports editor code folding and syntax highlighting:
 
-You can also embed blueprints from blueprintue.com using their share links:
+````markdown
+```uebp
+Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name="K2Node_CallFunction_0"
+   FunctionReference=(MemberName="PrintString",bSelfContext=True)
+   NodePosX=0
+   NodePosY=0
+   NodeGuid=A0000000000000000000000000000000
+End Object
+```
+````
 
+### 3. Blueprintue.com Links
 ```markdown
 ![uebp]{{{https://blueprintue.com/render/your-blueprint-id/}}}
 ```
@@ -66,6 +68,44 @@ plugins:
         css_path: 'custom/css/path'  # Optional: custom path to CSS files
         js_path: 'custom/js/path'    # Optional: custom path to JavaScript files
 ```
+
+## Changelog
+
+### 0.1.2 (2024-12-25)
+- Fixed rendering issues in markdown list items
+- Simplified textarea hiding method
+- Fixed HTML escaping issues in JavaScript code
+
+### 0.1.1 (2024-12-25)
+- Fixed JavaScript code HTML escaping issues
+- Improved code formatting and structure
+
+### 0.1.0 (2024-12-25)
+- Initial release
+- Support for rendering local blueprint text
+- Support for embedding blueprintue.com links
+- Added copy-to-clipboard functionality
+- Basic documentation and examples
+
+## Project Status
+
+ Core Features
+- [x] Local blueprint rendering
+- [x] Blueprintue.com embedding
+- [x] Copy to clipboard functionality
+- [x] Markdown list compatibility
+- [x] Basic documentation
+
+ Future Improvements
+- [ ] Add support for custom height configuration
+- [ ] Add support for dark/light theme switching
+- [ ] Add support for custom styling options
+- [ ] Improve error handling and user feedback
+- [ ] Add more comprehensive documentation and examples
+
+## Known Issues
+
+Currently, there are no known major issues. If you encounter any problems, please [open an issue](https://github.com/ohiyo/mkdocs-blueprintue/issues).
 
 ## Development
 

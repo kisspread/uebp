@@ -22,8 +22,8 @@ class BlueprintUEPlugin(BasePlugin):
     """
     
     config_scheme = (
-        ('css_path', config_options.Type(str, default='bue-render/render.css')),
-        ('js_path', config_options.Type(str, default='bue-render/render.js')),
+        ('css_path', config_options.Type(str, default=None)),
+        ('js_path', config_options.Type(str, default=None)),
     )
 
     def __init__(self):
@@ -35,6 +35,118 @@ class BlueprintUEPlugin(BasePlugin):
     
     def on_config(self, config):
         """Add our custom CSS and JavaScript files to the config."""
+        self._copy_assets(config)
+        return config
+    
+    def on_page_markdown(self, markdown, page, config, files):
+        """Called when each page's markdown is loaded.
+
+        This method processes the markdown content to render blueprint nodes.
+        It handles two types of syntax:
+        1. ![uebp]{{{...}}} - For inline blueprint text or URL
+        2. ```uebp ... ``` - For blueprint code blocks
+        
+        The processing is done in this order:
+        1. First split the content into code blocks and non-code blocks
+        2. For non-code blocks, process inline blueprint syntax
+        3. For code blocks, only process those marked as uebp
+        """
+        logger.info('Processing markdown for page: %s', page.file.src_path)
+        
+        # First split the content into code blocks and non-code blocks
+        parts = []
+        last_end = 0
+        code_block_pattern = r'```(\w+)?\n(.*?)```'
+        
+        # Find all code blocks
+        for match in re.finditer(code_block_pattern, markdown, re.DOTALL):
+            start, end = match.span()
+            if start > last_end:
+                # Process the text before this code block
+                text_part = markdown[last_end:start]
+                # Handle inline blueprints in text
+                text_part = self._process_inline_blueprints(text_part)
+                parts.append(text_part)
+                
+            # Handle code blocks
+            block_type = match.group(1)
+            block_content = match.group(2)
+            
+            if block_type == 'uebp':
+                # Render blueprint code blocks
+                parts.append(self._render_blueprint(block_content.strip()))
+            else:
+                # Keep other code blocks as is
+                parts.append(match.group(0))
+                
+            last_end = end
+            
+        if last_end < len(markdown):
+            # Process any remaining text
+            text_part = markdown[last_end:]
+            text_part = self._process_inline_blueprints(text_part)
+            parts.append(text_part)
+            
+        return ''.join(parts)
+    
+    def _process_inline_blueprints(self, text):
+        """Process inline blueprint syntax in text."""
+        def _replace(match):
+            return self._render_blueprint(match.group(1).strip())
+            
+        return re.sub(r'!\[uebp\]\{{{(.*?)}}}', _replace, text, flags=re.DOTALL)
+        
+    def _render_blueprint(self, text: str) -> str:
+        """Render a blueprint to HTML.
+        
+        Args:
+            text: The blueprint text or URL to render
+            
+        Returns:
+            HTML output for the blueprint
+        """
+        # Generate unique IDs for this blueprint
+        container_id = f'bue_container_{uuid.uuid4().hex[:8]}'
+        blueprint_id = f'bue_data_{uuid.uuid4().hex[:8]}'
+        
+        # Check if the text is a URL
+        if text.strip().startswith('http'):
+            # For URLs, use iframe
+            return Markup(f'<div class="bue-render"><iframe src="{text.strip()}" scrolling="no" allowfullscreen style="width: 100%; height: 643px; border: none;"></iframe></div>')
+        
+        # For blueprint text, use the renderer
+        html_output = f'''<div class="bue-render">
+            <div class="playground" id="{container_id}"></div>
+            <textarea id="{blueprint_id}_data" style="display:none">{text}</textarea>
+            <script>
+            (function() {{
+                function initBlueprintRenderer() {{
+                    const textarea = document.getElementById('{blueprint_id}_data');
+                    const container = document.getElementById('{container_id}');
+                    if (!textarea || !container) return;
+                    if (!window.blueprintUE || !window.blueprintUE.render || !window.blueprintUE.render.Main) {{
+                        setTimeout(initBlueprintRenderer, 100);
+                        return;
+                    }}
+                    try {{
+                        new window.blueprintUE.render.Main(textarea.value, container, {{height:"643px"}}).start();
+                    }} catch(e) {{
+                        console.error('Error initializing blueprint renderer:', e);
+                    }}
+                }};
+                if (document.readyState === 'complete') {{
+                    initBlueprintRenderer();
+                }} else {{
+                    window.addEventListener('load', initBlueprintRenderer);
+                }}
+            }})();
+            </script>
+        </div>'''
+        
+        return Markup(html_output)
+
+    def _copy_assets(self, config):
+        """Copy the required assets to the docs directory."""
         assets_path = os.path.join(os.path.dirname(__file__), 'assets')
         css_path = os.path.join(assets_path, 'bue-render', 'render.css')
         js_path = os.path.join(assets_path, 'bue-render', 'render.js')
@@ -61,64 +173,3 @@ class BlueprintUEPlugin(BasePlugin):
         shutil.copy2(js_path, os.path.join(docs_assets_path, 'render.js'))
         shutil.copy2(copy_css_path, os.path.join(docs_assets_path, 'copy-button.css'))
         shutil.copy2(copy_js_path, os.path.join(docs_assets_path, 'copy-button.js'))
-
-        return config
-    
-    def on_page_markdown(self, markdown, page, config, files):
-        """
-        Convert blueprint code blocks to HTML.
-        
-        Args:
-            markdown: Input markdown content
-            page: Current page object
-            config: Global configuration object
-            files: Object containing all project files
-            
-        Returns:
-            Modified markdown content
-        """
-        logger.info('Processing markdown for page: %s', page.file.src_path)
-        
-        # Split the markdown into code blocks and non-code blocks
-        parts = []
-        last_end = 0
-        code_block_pattern = r'```.*?```'
-        for match in re.finditer(code_block_pattern, markdown, re.DOTALL):
-            start, end = match.span()
-            if start > last_end:
-                # Add non-code block
-                parts.append(('text', markdown[last_end:start]))
-            # Add code block
-            parts.append(('code', match.group(0)))
-            last_end = end
-        if last_end < len(markdown):
-            parts.append(('text', markdown[last_end:]))
-
-        # Process only non-code blocks
-        result = ''
-        blueprint_pattern = r'!\[uebp\]\{{{(.*?)}}}' 
-        for part_type, content in parts:
-            if part_type == 'text':
-                # Replace blueprints in non-code blocks
-                for match in re.finditer(blueprint_pattern, content, re.DOTALL):
-                    blueprint_text = match.group(1).strip()
-                    html_output = self._render_blueprint(blueprint_text)
-                    content = content.replace(match.group(0), html_output)
-            result += content
-        
-        return result
-    
-    def _render_blueprint(self, text: str) -> str:
-        """Render a blueprint to HTML."""
-        # Check if the text is a blueprintue.com URL
-        if text.strip().startswith('https://blueprintue.com/render/'):
-            return Markup(f'<div class="bue-render"><iframe src="{text.strip()}" scrolling="no" allowfullscreen style="width: 100%; height: 643px; border: none;"></iframe></div>')
-
-        # Create a unique ID for this blueprint
-        blueprint_id = f"blueprint_{uuid.uuid4().hex}"
-        container_id = f"container_{blueprint_id}"
-        
-        # Create the HTML output without extra indentation
-        html_output = f'<div class="bue-render"><div class="playground" id="{container_id}"></div><textarea id="{blueprint_id}_data" style="display:none">{html.escape(text)}</textarea><script>(function(){{function initBlueprintRenderer(){{const textarea=document.getElementById(\'{blueprint_id}_data\');const container=document.getElementById(\'{container_id}\');if(!textarea||!container)return;if(!window.blueprintUE||!window.blueprintUE.render||!window.blueprintUE.render.Main){{setTimeout(initBlueprintRenderer,100);return;}}try{{new window.blueprintUE.render.Main(textarea.value,container,{{height:"643px"}}).start();}}catch(e){{console.error(\'Error initializing blueprint renderer:\',e);}}}};if(document.readyState===\'complete\'){{initBlueprintRenderer();}}else{{window.addEventListener(\'load\',initBlueprintRenderer);}}}})();</script></div>'
-        
-        return Markup(html_output)
